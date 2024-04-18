@@ -99,7 +99,7 @@ export async function innerDeployContract(
     publicClient,
     walletClient,
     contractAbi,
-    contractAddress
+    contractAddress as unknown as `0x${string}`
   );
 
   return contract;

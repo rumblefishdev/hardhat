@@ -13,6 +13,7 @@ use edr_eth::{
     Bytes, SpecId, B256, U256,
 };
 use edr_evm::{blockchain::BlockchainError, trace::Trace, ExecutableTransaction, SyncBlock};
+use log::info;
 
 use crate::{
     data::{BlockDataForTransaction, ProviderData, SendTransactionResult, TransactionAndBlock},
@@ -453,6 +454,7 @@ fn validate_send_transaction_request<LoggerErrorT: Debug>(
 ) -> Result<(), ProviderError<LoggerErrorT>> {
     if let Some(chain_id) = request.chain_id {
         let expected = data.chain_id();
+        info!("Validating chain id: expected={}, actual={}", expected, chain_id);
         if chain_id != expected {
             return Err(ProviderError::InvalidChainId {
                 expected,

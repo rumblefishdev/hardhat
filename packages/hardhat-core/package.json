@@ -1,6 +1,6 @@
 {
   "name": "@rumblefishdev/hardhat",
-  "version": "0.22.1",
+  "version": "0.22.5",
   "author": "Nomic Labs LLC",
   "license": "MIT",
   "homepage": "https://hardhat.org",
@@ -62,8 +62,8 @@
     "console.sol"
   ],
   "devDependencies": {
-    "@nomicfoundation/eslint-plugin-hardhat-internal-rules": "workspace:^",
-    "@nomicfoundation/eslint-plugin-slow-imports": "workspace:^",
+    "@nomicfoundation/eslint-plugin-hardhat-internal-rules": "file:../eslint-plugin-hardhat-internal-rules",
+    "@nomicfoundation/eslint-plugin-slow-imports": "file:../eslint-plugin-slow-imports",
     "@nomicfoundation/ethereumjs-block": "5.0.4",
     "@types/async-eventemitter": "^0.2.1",
     "@types/bn.js": "^5.1.0",

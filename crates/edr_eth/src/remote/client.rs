@@ -22,6 +22,8 @@ use reqwest_tracing::TracingMiddleware;
 use revm_primitives::{Bytecode, KECCAK_EMPTY};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::{OnceCell, RwLock};
+use tokio::time::sleep;
+use tracing::{info, info_span};
 use uuid::Uuid;
 
 use super::{
@@ -78,6 +80,10 @@ pub enum RpcClientError {
     /// The request cannot be serialized as JSON.
     #[error(transparent)]
     InvalidJsonRequest(serde_json::Error),
+
+    /// The request was rate limited.
+    #[error("The request was rate limited")]
+    TooManyRetries(),
 
     /// The server returned an invalid JSON-RPC response.
     #[error("Response '{response}' failed to parse with expected type '{expected_type}', due to error: '{error}'")]
@@ -603,17 +609,28 @@ impl RpcClient {
         self.batch_call_with_resolver(methods, |_| None).await
     }
 
-    #[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip_all))]
-    async fn batch_call_with_resolver(
-        &self,
-        methods: &[RequestMethod],
-        resolve_block_number: impl Fn(&serde_json::Value) -> Option<u64>,
-    ) -> Result<VecDeque<ResponseValue>, RpcClientError> {
-        let ids = self.get_ids(methods.len() as u64);
+#[cfg_attr(feature = "tracing", tracing::instrument(level = "trace", skip_all))]
+async fn batch_call_with_resolver(
+    &self,
+    methods: &[RequestMethod],
+    resolve_block_number: impl Fn(&serde_json::Value) -> Option<u64>,
+) -> Result<VecDeque<ResponseValue>, RpcClientError> {
+    let ids = self.get_ids(methods.len() as u64);
+    let cache_keys = methods.iter().map(try_read_cache_key).collect::<Vec<_>>();
+    let mut results: Vec<Option<ResponseValue>> = Vec::with_capacity(cache_keys.len());
+    let mut retry_number = 0;
+    let seconds = Duration::from_secs(1);
+    let mut needs_to_retry;
 
-        let cache_keys = methods.iter().map(try_read_cache_key).collect::<Vec<_>>();
+    info!("Rust Batch Call");
+    info_span!(
+        "Rust Batch Call",
+        methods = ?methods,
+        cache_keys = ?cache_keys,
+    );
 
-        let mut results: Vec<Option<ResponseValue>> = Vec::with_capacity(cache_keys.len());
+    loop {
+        needs_to_retry = false;
 
         for cache_key in &cache_keys {
             results.push(self.try_from_cache(cache_key.as_ref()).await?);
@@ -637,13 +654,13 @@ impl RpcClient {
 
         // Don't send empty request
         if requests.is_empty() {
-            Ok(results
+            return Ok(results
                 .into_iter()
                 .enumerate()
                 .map(|(_index, result)| {
                     result.expect("If there are no requests to send, there must be a cached response for each method invocation")
                 })
-                .collect())
+                .collect());
         } else {
             let request_body = SerializedRequest(
                 serde_json::to_value(&requests).map_err(RpcClientError::InvalidJsonRequest)?,
@@ -661,22 +678,38 @@ impl RpcClient {
                         id: response.id,
                     })?;
 
-                let result =
-                    response
-                        .data
-                        .into_result()
-                        .map_err(|error| RpcClientError::JsonRpcError {
+            let result = match response.data.into_result() {
+                Ok(data) => data,
+                Err(error) => {
+                    if error.code == 429 {
+                        needs_to_retry = true;
+                        break;
+                    } else {
+                        return Err(RpcClientError::JsonRpcError {
                             error,
                             request: request_body.to_json_string(),
-                        })?;
-
-                self.try_write_response_to_cache(&methods[index], &result, &resolve_block_number)
-                    .await?;
-
-                results[index] = Some(ResponseValue::Remote(result));
+                        });
+                    }
+                }
+            };
+        
+            self.try_write_response_to_cache(&methods[index], &result, &resolve_block_number)
+                .await?;
+        
+            results[index] = Some(ResponseValue::Remote(result));
             }
 
-            results
+            if needs_to_retry {
+                if retry_number < MAX_RETRIES {
+                    sleep(seconds).await;
+                    retry_number += 1;
+                    continue;
+                } else {
+                    return Err(RpcClientError::TooManyRetries());
+                }
+            }
+
+            return results
                 .into_iter()
                 .enumerate()
                 .map(|(index, result)| {
@@ -686,7 +719,8 @@ impl RpcClient {
                         response: remote_response.clone(),
                     })
                 })
-                .collect()
+                .collect();
+            }
         }
     }
 
