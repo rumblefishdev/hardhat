@@ -3,7 +3,7 @@
 To execute your deployments, you need to use the `ignition deploy` task. It takes a path to a module file as an argument:
 
 ```sh
-npx hardhat igntion deploy ignition/modules/MyModule.js
+npx hardhat ignition deploy ignition/modules/MyModule.js
 ```
 
 Hardhat Ignition will load the Ignition Module exported by the file you provided, and deploy it.
@@ -28,7 +28,7 @@ Hardhat Ignition will figure out how to pick up from where it left off last time
 
 ## Defining parameters during deployment
 
-Ignition Modules can define [Module Parameters](./creating-modules.md#module-parameters) and use them programmatically. When you deploy a module using the `ingition deploy` task you can provide a JSON file with their values. This section will focus on providing the parameters, while the [Module Parameters section](./creating-modules.md#module-parameters) explains how to retrieve them within a module.
+Ignition Modules can define [Module Parameters](./creating-modules.md#module-parameters) and use them programmatically. When you deploy a module using the `ignition deploy` task you can provide a JSON file with their values. This section will focus on providing the parameters, while the [Module Parameters section](./creating-modules.md#module-parameters) explains how to retrieve them within a module.
 
 An example file could be called `./ignition/parameters.json` and contain the following:
 
@@ -39,6 +39,12 @@ An example file could be called `./ignition/parameters.json` and contain the fol
   }
 }
 ```
+
+:::tip
+
+`JSON5` format is also supported for parameter files!
+
+:::
 
 This makes the `name` parameter for the `Apollo` module be `"Saturn V"`.
 
@@ -64,7 +70,66 @@ npx hardhat ignition deploy ignition/modules/Apollo.js --parameters ignition/par
 
 ::::
 
+To pass a `bigint` as a Module parameter, you can encode it as a string. Any string parameter value that matches the regex `/d+n/` will be converted to a `bigint` before being passed to the module, for instance the `endowment` parameter in the following example:
+
+```json
+{
+  "MyModule": {
+    "endowment": "1000000000000000000n" // 1 ETH in wei
+  }
+}
+```
+
+You can also define global parameters that will be available to all modules. To do this, define a `$global` key in the parameters file:
+
+```json
+{
+  "$global": {
+    "shouldBeAllowed": true
+  },
+  "MyModule": {
+    "shouldBeAllowed": false
+  }
+}
+```
+
+In this example, the `shouldBeAllowed` parameter will be `true` for all modules except `MyModule`, where it will be `false`. Global parameters can be accessed in the same way as module parameters.
+
+### Module parameters when deploying via Hardhat Scripts
+
+If you're deploying Ignition Modules via Hardhat Scripts, you can pass an absolute path to your parameters JSON file directly to the `deploy` function. Here's an example of how to do this:
+
+```typescript
+import hre from "hardhat";
+import path from "path";
+
+import ApolloModule from "../ignition/modules/Apollo";
+
+async function main() {
+  const { apollo } = await hre.ignition.deploy(ApolloModule, {
+    // This must be an absolute path to your parameters JSON file
+    parameters: path.resolve(__dirname, "../ignition/parameters.json"),
+  });
+
+  console.log(`Apollo deployed to: ${await apollo.getAddress()}`);
+}
+
+main().catch(console.error);
+```
+
+:::tip
+
+You can read more about deploying and using Ignition modules in Hardhat scripts in the [scripts guide](/ignition/docs/guides/scripts).
+
+:::
+
 ## Inspecting an existing deployment
+
+To get a list of all the deployment IDs that exist in the current project, run:
+
+```sh
+npx hardhat ignition deployments
+```
 
 To check on the current status of a deployment, run:
 
@@ -72,9 +137,11 @@ To check on the current status of a deployment, run:
 npx hardhat ignition status DeploymentId
 ```
 
-If you run it on the [Quick Start guide](../getting-started/index.md#quick-start) project after executing the deploying, you'd see something like this:
+If you run these tasks on the [Quick Start guide](../getting-started/index.md#quick-start) project after executing the deployment, you'd see something like this:
 
 ```
+$ npx hardhat ignition deployments
+chain-31337
 $ npx hardhat ignition status chain-31337
 
 [ chain-31337 ] successfully deployed 🚀

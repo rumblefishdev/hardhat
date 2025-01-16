@@ -128,7 +128,7 @@ If the event has arguments, the `.withArgs` matcher can be added:
 
 ```ts
 await expect(token.transfer(address, 0))
-  .to.be.revertedWithCustomError(token, "InvalidTransferValue")
+  .to.emit(token, "Transfer")
   .withArgs(100);
 ```
 
@@ -203,7 +203,7 @@ Can be used after a `.emit` or a `.revertedWithCustomError` matcher to assert th
 ```ts
 // events
 await expect(token.transfer(address, 0))
-  .to.be.revertedWithCustomError(token, "InvalidTransferValue")
+  .to.emit(token, "Transfer")
   .withArgs(100);
 
 // errors
@@ -259,7 +259,7 @@ expect("0x1234").to.be.properHex(4);
 
 ### `.hexEqual`
 
-Assert that the given strings hexadecimal strings correspond to the same numerical value:
+Assert that the given hexadecimal strings correspond to the same numerical value:
 
 ```ts
 expect("0x00012AB").to.hexEqual("0x12ab");

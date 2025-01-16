@@ -23,7 +23,7 @@ const IGNORE_PEER_DEPENDENCIES_CHECK_FOR_PACKAGES = {
   ["ts-node"]: ["hardhat"],
 };
 
-function checkPeerDepedencies(packageJson) {
+function checkPeerDependencies(packageJson) {
   if (packageJson.peerDependencies === undefined) {
     return true;
   }
@@ -57,18 +57,8 @@ function checkPeerDepedencies(packageJson) {
     }
 
     const peerDep = packageJson.peerDependencies[dependency];
-    if (peerDep.startsWith("workspace:")) {
-      console.error(
-        `${packageJson.name} uses the workspace protocol for ${dependency}, which is a peer dependency`
-      );
+    const devDep = packageJson.devDependencies[dependency];
 
-      success = false;
-    }
-
-    const devDep = packageJson.devDependencies[dependency].replace(
-      /^workspace:/,
-      ""
-    );
     if (peerDep !== devDep) {
       console.error(
         `${packageJson.name} has different versions of ${dependency} as peerDependency and devDependency`
@@ -179,7 +169,7 @@ function main() {
       continue;
     }
 
-    const peersOk = checkPeerDepedencies(packageJson);
+    const peersOk = checkPeerDependencies(packageJson);
     const dependencyMap = getDependencyMap(packageJson);
     dependencyMaps.push(dependencyMap);
 

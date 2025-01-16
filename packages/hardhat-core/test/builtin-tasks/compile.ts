@@ -1,3 +1,4 @@
+import { getLatestSupportedSolcVersion } from "@nomicfoundation/edr";
 import { assert, expect } from "chai";
 import ci from "ci-info";
 import * as fsExtra from "fs-extra";
@@ -45,6 +46,40 @@ describe("compile task", function () {
       (f) => f.endsWith(".json")
     );
   }
+
+  describe("compile with latest solc version", function () {
+    // The 'hardhat.config.js' and 'A.sol' files need to be updated each time a new solc version is released
+
+    useFixtureProject("compilation-latest-solc-version");
+    useEnvironment();
+
+    it("should have the last version of solc in the 'hardhat.config.js' and 'A.sol' files", async function () {
+      // Test to check that the last version of solc is being tested
+      const userConfigSolcVersion = this.env.userConfig.solidity;
+
+      const lastSolcVersion = getLatestSupportedSolcVersion();
+
+      assert.equal(
+        userConfigSolcVersion,
+        lastSolcVersion,
+        `The version of solc in the user config is not the last one. Expected '${lastSolcVersion}' but got '${userConfigSolcVersion}'. Did you forget to update the test?`
+      );
+    });
+
+    it("should compile and emit artifacts using the latest solc version", async function () {
+      await this.env.run("compile");
+
+      assertFileExists(path.join("artifacts", "contracts", "A.sol", "A.json"));
+      assertBuildInfoExists(
+        path.join("artifacts", "contracts", "A.sol", "A.dbg.json")
+      );
+
+      const buildInfos = getBuildInfos();
+      assert.lengthOf(buildInfos, 1);
+
+      assertValidJson(buildInfos[0]);
+    });
+  });
 
   describe("project with single file", function () {
     useFixtureProject("compilation-single-file");
